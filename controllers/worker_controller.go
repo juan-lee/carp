@@ -21,9 +21,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	capzv1alpha3 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha3"
@@ -151,6 +153,82 @@ var (
 	machineTemplateControlPlane   = capzv1alpha3.AzureMachineTemplate{}
 	machineTemplateWorker         = capzv1alpha3.AzureMachineTemplate{}
 )
+
+func getKubeadmControlPlane(cluster, location string, settings map[string]string) (*kcpv1alpha3.KubeadmControlPlane, error) {
+	data, err := getCloudProviderConfig(cluster, location, settings)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate cloud provider config")
+	}
+
+	controlplane := &kcpv1alpha3.KubeadmControlPlane{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cluster,
+		},
+		Spec: kcpv1alpha3.KubeadmControlPlaneSpec{
+			InfrastructureTemplate: corev1.ObjectReference{
+				APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha3",
+				Kind:       "AzureMachineTemplate",
+				Name:       cluster,
+			},
+			KubeadmConfigSpec: capbkv1alpha3.KubeadmConfigSpec{
+				ClusterConfiguration: &kubeadmv1beta1.ClusterConfiguration{
+					APIServer: kubeadmv1beta1.APIServer{
+						ControlPlaneComponent: kubeadmv1beta1.ControlPlaneComponent{
+							ExtraArgs: map[string]string{
+								"cloud-config":   "/etc/kubernetes/azure.json",
+								"cloud-provider": "azure",
+							},
+							ExtraVolumes: []kubeadmv1beta1.HostPathMount{
+								{
+									HostPath:  "/etc/kubernetes/azure.json",
+									MountPath: "/etc/kubernetes/azure.json",
+									Name:      "cloud-config",
+									ReadOnly:  true,
+								},
+							},
+						},
+						TimeoutForControlPlane: &metav1.Duration{
+							Duration: time.Minute * 20,
+						},
+					},
+					ControllerManager: kubeadmv1beta1.ControlPlaneComponent{
+						ExtraArgs: map[string]string{
+							"cloud-config":   "/etc/kubernetes/azure.json",
+							"cloud-provider": "azure",
+						},
+					},
+				},
+				InitConfiguration: &kubeadmv1beta1.InitConfiguration{
+					NodeRegistration: kubeadmv1beta1.NodeRegistrationOptions{
+						KubeletExtraArgs: map[string]string{
+							"cloud-config":   "/etc/kubernetes/azure.json",
+							"cloud-provider": "azure",
+						},
+						Name: "{{ ds.meta_data[\"local_hostname\"] }}",
+					},
+				},
+				JoinConfiguration: &kubeadmv1beta1.JoinConfiguration{
+					NodeRegistration: kubeadmv1beta1.NodeRegistrationOptions{
+						KubeletExtraArgs: map[string]string{
+							"cloud-config":   "/etc/kubernetes/azure.json",
+							"cloud-provider": "azure",
+						},
+						Name: "{{ ds.meta_data[\"local_hostname\"] }}",
+					},
+				},
+				Files: []capbkv1alpha3.File{
+					{
+						Owner:       "root:root",
+						Path:        "/etc/kubernetes/azure.json",
+						Permissions: "0644",
+						Content:     data,
+					},
+				},
+			},
+		},
+	}
+	return controlplane, nil
+}
 
 func getKubeadmConfigTemplate(cluster, location string, settings map[string]string) (*capbkv1alpha3.KubeadmConfigTemplate, error) {
 	data, err := getCloudProviderConfig(cluster, location, settings)
