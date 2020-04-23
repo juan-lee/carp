@@ -72,6 +72,8 @@ func (r *WorkerReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, reterr er
 		}
 	}
 
+	worker.Status.Phase = infrastructurev1alpha1.WorkerPending
+
 	defer func() {
 		if err := r.Status().Update(ctx, &worker); err != nil && reterr == nil {
 			log.Error(err, "failed to update worker status")

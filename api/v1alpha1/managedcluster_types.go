@@ -20,8 +20,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+type ManagedClusterPhase string
+
+const (
+	// ManagedClusterPending means the cluster is in a pending state
+	ManagedClusterPending ManagedClusterPhase = "Pending"
+
+	// ManagedClusterRunning means the cluster is running
+	ManagedClusterRunning ManagedClusterPhase = "Running"
+
+	// ManagedClusterTermination means the cluster is in the state of termination
+	ManagedClusterTerminating ManagedClusterPhase = "Terminating"
+)
 
 // ManagedClusterSpec defines the desired state of ManagedCluster
 type ManagedClusterSpec struct {
@@ -34,6 +44,10 @@ type ManagedClusterSpec struct {
 
 // ManagedClusterStatus defines the observed state of ManagedCluster
 type ManagedClusterStatus struct {
+	// Phase is the current lifecycle phase of the managed cluster
+	Phase ManagedClusterPhase `json:"phase"`
+
+	// AssignedWorker is the unique identifier of the worker to which the cluster has been assigned
 	AssignedWorker *string `json:"assignedWorker,omitempty"`
 }
 

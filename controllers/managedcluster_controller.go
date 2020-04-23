@@ -69,6 +69,8 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, r
 		return ctrl.Result{}, nil
 	}
 
+	mc.Status.Phase = infrastructurev1alpha1.ManagedClusterPending
+
 	defer func() {
 		if err := r.Status().Update(ctx, &mc); err != nil && reterr == nil {
 			log.Error(err, "failed to update managed cluster status")
@@ -80,6 +82,8 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, r
 		log.Error(err, "failed to assign worker")
 		return ctrl.Result{}, err
 	}
+
+	mc.Status.Phase = infrastructurev1alpha1.ManagedClusterRunning
 
 	return ctrl.Result{}, nil
 }
