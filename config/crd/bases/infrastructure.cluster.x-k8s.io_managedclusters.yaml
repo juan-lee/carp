@@ -45,7 +45,14 @@ spec:
           description: ManagedClusterStatus defines the observed state of ManagedCluster
           properties:
             assignedWorker:
+              description: AssignedWorker is the unique identifier of the worker to
+                which the cluster has been assigned
               type: string
+            phase:
+              description: Phase is the current lifecycle phase of the managed cluster
+              type: string
+          required:
+          - phase
           type: object
       type: object
   version: v1alpha1

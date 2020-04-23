@@ -23,8 +23,15 @@ import (
 type WorkerPhase string
 
 const (
+	// WorkerPending means the cluster is in a state where it should not be accepting new control planes,
+	// possibly because of some other operation such as creating, updating, or scaling
+	WorkerPending WorkerPhase = "Pending"
+
 	// WorkerRunning means the cluster is running and able to host control planes
 	WorkerRunning WorkerPhase = "Running"
+
+	// WorkerTermination means the cluster is in the state of termination
+	WorkerTerminating WorkerPhase = "Terminating"
 )
 
 // WorkerSpec defines the desired state of Worker
