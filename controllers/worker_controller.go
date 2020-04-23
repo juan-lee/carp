@@ -154,6 +154,31 @@ var (
 	machineTemplateWorker         = capzv1alpha3.AzureMachineTemplate{}
 )
 
+func getCluster(cluster, location string, settings map[string]string) *capiv1alpha3.Cluster {
+	return &capiv1alpha3.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cluster,
+		},
+		Spec: capiv1alpha3.ClusterSpec{
+			ClusterNetwork: &capiv1alpha3.ClusterNetwork{
+				Pods: &capiv1alpha3.NetworkRanges{
+					CIDRBlocks: []string{"192.168.0.0/16"},
+				},
+			},
+			ControlPlaneRef: &corev1.ObjectReference{
+				APIVersion: "controlplane.cluster.x-k8s.io/v1alpha3",
+				Kind:       "AzureMachineTemplate",
+				Name:       cluster,
+			},
+			InfrastructureRef: &corev1.ObjectReference{
+				APIVersion: "controlplane.cluster.x-k8s.io/v1alpha3",
+				Kind:       "AzureMachineTemplate",
+				Name:       cluster,
+			},
+		},
+	}
+}
+
 func getKubeadmControlPlane(cluster, location string, settings map[string]string) (*kcpv1alpha3.KubeadmControlPlane, error) {
 	data, err := getCloudProviderConfig(cluster, location, settings)
 	if err != nil {

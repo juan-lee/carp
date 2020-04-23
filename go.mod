@@ -5,6 +5,8 @@ go 1.14
 require (
 	github.com/Azure/go-autorest/autorest/azure/auth v0.4.2
 	github.com/go-logr/logr v0.1.0
+	github.com/onsi/ginkgo v1.12.0
+	github.com/onsi/gomega v1.9.0
 	golang.zx2c4.com/wireguard v0.0.20200321-0.20200407055553-a4657f996d98
 	k8s.io/api v0.17.4
 	k8s.io/apimachinery v0.17.4
