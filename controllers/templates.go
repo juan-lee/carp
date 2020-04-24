@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/Azure/go-autorest/autorest/to"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capzv1alpha3 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha3"
 	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
@@ -14,6 +16,36 @@ import (
 	kubeadmv1beta1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/types/v1beta1"
 	kcpv1alpha3 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
 )
+
+func getMachineDeployment(cluster, k8sVersion string, replicas int32) *capiv1alpha3.MachineDeployment {
+	return &capiv1alpha3.MachineDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("%s-md-0", cluster),
+		},
+		Spec: capiv1alpha3.MachineDeploymentSpec{
+			ClusterName: cluster,
+			Replicas:    to.Int32Ptr(replicas),
+			Selector:    metav1.LabelSelector{},
+			Template: capiv1alpha3.MachineTemplateSpec{
+				Spec: capiv1alpha3.MachineSpec{
+					Bootstrap: capiv1alpha3.Bootstrap{
+						ConfigRef: &v1.ObjectReference{
+							APIVersion: "bootstrap.cluster.x-k8s.io/v1alpha3",
+							Name:       cluster,
+							Kind:       "KubeadmConfigTemplate",
+						},
+					},
+					InfrastructureRef: v1.ObjectReference{
+						APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha3",
+						Name:       cluster,
+						Kind:       "AzureMachineTemplate",
+					},
+					Version: to.StringPtr(k8sVersion),
+				},
+			},
+		},
+	}
+}
 
 func getMachineTemplate(cluster, location string) *capzv1alpha3.AzureMachineTemplate {
 	return &capzv1alpha3.AzureMachineTemplate{
@@ -59,6 +91,23 @@ func getCluster(cluster, location string, settings map[string]string) *capiv1alp
 				Kind:       "AzureMachineTemplate",
 				Name:       fmt.Sprintf("%s-md-0", cluster),
 			},
+		},
+	}
+}
+
+func getAzureCluster(cluster, location string) *capzv1alpha3.AzureCluster {
+	return &capzv1alpha3.AzureCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cluster,
+		},
+		Spec: capzv1alpha3.AzureClusterSpec{
+			Location: location,
+			NetworkSpec: capzv1alpha3.NetworkSpec{
+				Vnet: capzv1alpha3.VnetSpec{
+					Name: fmt.Sprintf("%s-vnet", cluster),
+				},
+			},
+			ResourceGroup: cluster,
 		},
 	}
 }
