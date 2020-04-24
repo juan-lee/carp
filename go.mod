@@ -5,6 +5,7 @@ go 1.14
 require (
 	github.com/Azure/azure-service-bus-go v0.10.0
 	github.com/Azure/go-autorest/autorest/azure/auth v0.4.2
+	github.com/Azure/go-autorest/autorest/to v0.3.0
 	github.com/apex/log v1.1.4
 	github.com/go-logr/logr v0.1.0
 	github.com/google/uuid v1.1.1
@@ -17,6 +18,7 @@ require (
 	k8s.io/cli-runtime v0.17.4
 	k8s.io/client-go v0.17.4
 	k8s.io/kubectl v0.0.0
+	k8s.io/kubernetes v1.18.2
 	sigs.k8s.io/cluster-api v0.3.4-0.20200423083944-18ce96a31a4a
 	sigs.k8s.io/cluster-api-provider-azure v0.4.2
 	sigs.k8s.io/controller-runtime v0.5.2

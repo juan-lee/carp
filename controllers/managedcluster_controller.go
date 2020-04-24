@@ -131,7 +131,7 @@ func (r *ManagedClusterReconciler) unassignWorker(ctx context.Context, mc *infra
 		}
 
 		mc.Status.AssignedWorker = nil
-		*worker.Status.AvailableCapacity--
+		*worker.Status.AvailableCapacity++
 		if err := r.Status().Update(ctx, &worker); err != nil {
 			return fmt.Errorf("unable to update selected worker status: %+v", err)
 		}
