@@ -1,0 +1,4 @@
+# will be necessary when we actually have webhooks, since they run separately
+- op: replace
+  path: "/spec/conversion/webhook/clientConfig/service/namespace"
+  value: carp-system

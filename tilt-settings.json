@@ -1,0 +1,12 @@
+{
+    "default_registry": "localhost:5000",
+    "provider_repos": [],
+    "allowed_contexts": "kind-kind",
+    "enable_providers": [],
+    "kustomize_substitutions": {
+        "AZURE_SUBSCRIPTION_ID_B64": "${AZURE_SUBSCRIPTION_ID_B64}",
+        "AZURE_TENANT_ID_B64": "${AZURE_TENANT_ID_B64}",
+        "AZURE_CLIENT_SECRET_B64": "${AZURE_CLIENT_SECRET_B64}",
+        "AZURE_CLIENT_ID_B64": "${AZURE_CLIENT_ID_B64}"
+    }
+}
