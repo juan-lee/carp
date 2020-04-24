@@ -29,6 +29,6 @@ jobs:
         REGISTRY_USERNAME: juanlee
         REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
       run: |
-        echo ${REGISTRY_PASSWORD} | docker login -u ${REGISTRY_USERNAME} --password-stdin
+        docker login -u ${REGISTRY_USERNAME} --password ${REGISTRY_PASSWORD}
         RELEASE_TAG="${GITHUB_SHA}"
         IMG="${IMAGE}:${RELEASE_TAG}" make docker-build docker-push
