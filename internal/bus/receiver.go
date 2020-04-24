@@ -137,9 +137,29 @@ func ensureSubscription(ctx context.Context, sm *servicebus.SubscriptionManager,
 		return nil, fmt.Errorf("Couldn't create subscription %s", name)
 	}
 
-	// TODO(keikumata): figure out how to filter properly
-	// This may result in a concurrency issue where the receiver may get a message before the filter rule is in place
-	sqlFilter := fmt.Sprintf("destinationId = '%s'", name)
-	_, err = sm.PutRule(ctx, name, "destinationIdFilter", servicebus.SQLFilter{Expression: sqlFilter})
+	err = ensureFilterRule(ctx, sm, name)
+	if err != nil {
+		return nil, err
+	}
 	return subEntity, err
+}
+
+func ensureFilterRule(ctx context.Context, sm *servicebus.SubscriptionManager, name string) error {
+	// This may result in a concurrency issue where the receiver may get a message before the filter rule is in place
+	// probably disable the disable receive while updating?
+	// maybe it's ok, we would just get messages that aren't for us, they should fail, and go on the deadletter.
+
+	rules, err := sm.ListRules(ctx, name)
+	if err != nil {
+		return err
+	}
+	sqlFilter := fmt.Sprintf("destinationId LIKE '%s'", name)
+	ruleName := "destinationIdFilter"
+
+	for _, rule := range rules {
+		sm.DeleteRule(ctx, name, rule.Name)
+	}
+
+	_, err = sm.PutRule(ctx, name, ruleName, servicebus.SQLFilter{Expression: sqlFilter})
+	return err
 }
