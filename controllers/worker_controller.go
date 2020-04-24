@@ -1,17 +1,16 @@
 /*
 Copyright 2020 Juan-Lee Pang.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
 */
 
 // nolint: dupl
@@ -24,6 +23,10 @@ import (
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	capzv1alpha3 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha3"
+	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	capbkv1alpha3 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha3"
+	kcpv1alpha3 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -51,6 +54,12 @@ type WorkerReconciler struct {
 func (r *WorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrastructurev1alpha1.Worker{}).
+		Owns(&capiv1alpha3.Cluster{}).
+		Owns(&kcpv1alpha3.KubeadmControlPlane{}).
+		Owns(&capzv1alpha3.AzureCluster{}).
+		Owns(&capbkv1alpha3.KubeadmConfigTemplate{}).
+		Owns(&capiv1alpha3.MachineDeployment{}).
+		Owns(&capzv1alpha3.AzureMachineTemplate{}).
 		Complete(r)
 }
 
@@ -109,8 +118,14 @@ func (r *WorkerReconciler) reconcileKubeadmControlPlane(ctx context.Context, wor
 
 	template.Namespace = worker.Namespace
 
+	// TODO(ace): Verify -- I believe this is necessary because CreateOrUpdate does a get
+	// into the object it receives, so we need to save a copy and capture it
+	// into the closure context.
+	want := template.DeepCopy()
+
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
-		return nil
+		template = want
+		return controllerutil.SetControllerReference(worker, template, r.Scheme)
 	})
 
 	if err != nil {
@@ -128,8 +143,14 @@ func (r *WorkerReconciler) reconcileKubeadmConfigTemplate(ctx context.Context, w
 
 	template.Namespace = worker.Namespace
 
+	// TODO(ace): Verify -- I believe this is necessary because CreateOrUpdate does a get
+	// into the object it receives, so we need to save a copy and capture it
+	// into the closure context.
+	want := template.DeepCopy()
+
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
-		return nil
+		template = want
+		return controllerutil.SetControllerReference(worker, template, r.Scheme)
 	})
 
 	if err != nil {
@@ -143,8 +164,14 @@ func (r *WorkerReconciler) reconcileMachineTemplate(ctx context.Context, worker 
 	template := getMachineTemplate(worker.Name, worker.Spec.Location)
 	template.Namespace = worker.Namespace
 
+	// TODO(ace): Verify -- I believe this is necessary because CreateOrUpdate does a get
+	// into the object it receives, so we need to save a copy and capture it
+	// into the closure context.
+	want := template.DeepCopy()
+
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
-		return nil
+		template = want
+		return controllerutil.SetControllerReference(worker, template, r.Scheme)
 	})
 
 	if err != nil {
@@ -155,11 +182,17 @@ func (r *WorkerReconciler) reconcileMachineTemplate(ctx context.Context, worker 
 }
 
 func (r *WorkerReconciler) reconcileMachineDeployment(ctx context.Context, worker *infrastructurev1alpha1.Worker) error {
-	template := getMachineDeployment(worker.Name, worker.Spec.Version, 3)
+	template := getMachineDeployment(worker)
 	template.Namespace = worker.Namespace
 
+	// TODO(ace): Verify -- I believe this is necessary because CreateOrUpdate does a get
+	// into the object it receives, so we need to save a copy and capture it
+	// into the closure context.
+	want := template.DeepCopy()
+
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
-		return nil
+		template = want
+		return controllerutil.SetControllerReference(worker, template, r.Scheme)
 	})
 
 	if err != nil {
@@ -173,8 +206,14 @@ func (r *WorkerReconciler) reconcileCluster(ctx context.Context, worker *infrast
 	template := getCluster(worker.Name, worker.Spec.Location, r.AzureSettings)
 	template.Namespace = worker.Namespace
 
+	// TODO(ace): Verify -- I believe this is necessary because CreateOrUpdate does a get
+	// into the object it receives, so we need to save a copy and capture it
+	// into the closure context.
+	want := template.DeepCopy()
+
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
-		return nil
+		template = want
+		return controllerutil.SetControllerReference(worker, template, r.Scheme)
 	})
 
 	if err != nil {
@@ -188,8 +227,14 @@ func (r *WorkerReconciler) reconcileAzureCluster(ctx context.Context, worker *in
 	template := getAzureCluster(worker.Name, worker.Spec.Location)
 	template.Namespace = worker.Namespace
 
+	// TODO(ace): Verify -- I believe this is necessary because CreateOrUpdate does a get
+	// into the object it receives, so we need to save a copy and capture it
+	// into the closure context.
+	want := template.DeepCopy()
+
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
-		return nil
+		template = want
+		return controllerutil.SetControllerReference(worker, template, r.Scheme)
 	})
 
 	if err != nil {

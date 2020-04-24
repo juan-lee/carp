@@ -205,7 +205,7 @@ def enable_provider(name):
 # the network each time.
 def deploy_cert_manager():
     registry = "quay.io/jetstack"
-    version = "v0.14.2"
+    version = "v0.11.0"
     images = ["cert-manager-controller", "cert-manager-cainjector", "cert-manager-webhook"]
 
     if settings.get("preload_images_for_kind"):
@@ -216,7 +216,7 @@ def deploy_cert_manager():
     local("kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/{}/cert-manager.yaml".format(version))
 
     # wait for the service to become available
-    local("kubectl wait --for=condition=Available --timeout=300s apiservice v1alpha3.cert-manager.io")
+    local("kubectl wait --for=condition=Available --timeout=300s apiservice v1beta1.webhook.cert-manager.io")
 
 # Users may define their own Tilt customizations in tilt.d. This directory is excluded from git and these files will
 # not be checked in to version control.

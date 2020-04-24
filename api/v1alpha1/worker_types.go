@@ -43,6 +43,8 @@ type WorkerSpec struct {
 	Location string `json:"location"`
 	// Capacity is the total number of managed control planes that can be scheduled to this cluster
 	Capacity int32 `json:"capacity"`
+	//	Replicas is the number of worker machines in this worker cluster.
+	Replicas int32 `json:"replicas"`
 }
 
 // WorkerStatus defines the observed state of Worker

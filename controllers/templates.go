@@ -15,33 +15,35 @@ import (
 	capbkv1alpha3 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha3"
 	kubeadmv1beta1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/types/v1beta1"
 	kcpv1alpha3 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
+
+	carpv1alpha1 "github.com/juan-lee/carp/api/v1alpha1"
 )
 
-func getMachineDeployment(cluster, k8sVersion string, replicas int32) *capiv1alpha3.MachineDeployment {
+func getMachineDeployment(worker *carpv1alpha1.Worker) *capiv1alpha3.MachineDeployment {
 	return &capiv1alpha3.MachineDeployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: cluster,
+			Name: worker.Name,
 		},
 		Spec: capiv1alpha3.MachineDeploymentSpec{
-			ClusterName: cluster,
-			Replicas:    to.Int32Ptr(replicas),
+			ClusterName: worker.Name,
+			Replicas:    to.Int32Ptr(worker.Spec.Replicas),
 			Selector:    metav1.LabelSelector{},
 			Template: capiv1alpha3.MachineTemplateSpec{
 				Spec: capiv1alpha3.MachineSpec{
-					ClusterName: cluster,
+					ClusterName: worker.Name,
 					Bootstrap: capiv1alpha3.Bootstrap{
 						ConfigRef: &v1.ObjectReference{
 							APIVersion: "bootstrap.cluster.x-k8s.io/v1alpha3",
-							Name:       cluster,
+							Name:       worker.Name,
 							Kind:       "KubeadmConfigTemplate",
 						},
 					},
 					InfrastructureRef: v1.ObjectReference{
 						APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha3",
-						Name:       cluster,
+						Name:       worker.Name,
 						Kind:       "AzureMachineTemplate",
 					},
-					Version: to.StringPtr(k8sVersion),
+					Version: to.StringPtr(worker.Spec.Version),
 				},
 			},
 		},
