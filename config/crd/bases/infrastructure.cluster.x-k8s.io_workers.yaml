@@ -44,9 +44,14 @@ spec:
             location:
               description: Location is the Azure region for this cluster.
               type: string
+            version:
+              description: Version is the version of Kubernetes running on this worker
+                cluster.
+              type: string
           required:
           - capacity
           - location
+          - version
           type: object
         status:
           description: WorkerStatus defines the observed state of Worker

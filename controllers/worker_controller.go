@@ -155,7 +155,7 @@ func (r *WorkerReconciler) reconcileMachineTemplate(ctx context.Context, worker 
 }
 
 func (r *WorkerReconciler) reconcileMachineDeployment(ctx context.Context, worker *infrastructurev1alpha1.Worker) error {
-	template := getMachineDeployment(worker.Name, worker.Spec.Location, 3)
+	template := getMachineDeployment(worker.Name, worker.Spec.Version, 3)
 	template.Namespace = worker.Namespace
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {

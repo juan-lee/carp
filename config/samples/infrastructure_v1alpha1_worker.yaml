@@ -2,6 +2,9 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: Worker
 metadata:
   name: worker-sample
+  annotations:
+    "ace": "do"
 spec:
+  version: v1.17.4
   capacity: 2
   location: southcentralus

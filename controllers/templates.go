@@ -20,7 +20,7 @@ import (
 func getMachineDeployment(cluster, k8sVersion string, replicas int32) *capiv1alpha3.MachineDeployment {
 	return &capiv1alpha3.MachineDeployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("%s-md-0", cluster),
+			Name: cluster,
 		},
 		Spec: capiv1alpha3.MachineDeploymentSpec{
 			ClusterName: cluster,
@@ -38,7 +38,7 @@ func getMachineDeployment(cluster, k8sVersion string, replicas int32) *capiv1alp
 					},
 					InfrastructureRef: v1.ObjectReference{
 						APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha3",
-						Name:       fmt.Sprintf("%s-md-0", cluster),
+						Name:       cluster,
 						Kind:       "AzureMachineTemplate",
 					},
 					Version: to.StringPtr(k8sVersion),
@@ -51,7 +51,7 @@ func getMachineDeployment(cluster, k8sVersion string, replicas int32) *capiv1alp
 func getMachineTemplate(cluster, location string) *capzv1alpha3.AzureMachineTemplate {
 	return &capzv1alpha3.AzureMachineTemplate{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("%s-md-0", cluster),
+			Name: cluster,
 		},
 		Spec: capzv1alpha3.AzureMachineTemplateSpec{
 			Template: capzv1alpha3.AzureMachineTemplateResource{
@@ -60,7 +60,7 @@ func getMachineTemplate(cluster, location string) *capzv1alpha3.AzureMachineTemp
 					OSDisk: capzv1alpha3.OSDisk{
 						DiskSizeGB: 1024,
 						ManagedDisk: capzv1alpha3.ManagedDisk{
-							StorageAccountType: "Premium",
+							StorageAccountType: "Premium_LRS",
 						},
 						OSType: "Linux",
 					},
@@ -89,8 +89,8 @@ func getCluster(cluster, location string, settings map[string]string) *capiv1alp
 			},
 			InfrastructureRef: &corev1.ObjectReference{
 				APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha3",
-				Kind:       "AzureMachineTemplate",
-				Name:       fmt.Sprintf("%s-md-0", cluster),
+				Kind:       "AzureCluster",
+				Name:       cluster,
 			},
 		},
 	}

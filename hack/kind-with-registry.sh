@@ -2,7 +2,7 @@
 set -o errexit
 
 # desired cluster name; default is "kind"
-KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-capz}"
+KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-kind}"
 
 if [[ "$(kind get clusters)" =~ .*"${KIND_CLUSTER_NAME}".* ]]; then
   echo "cluster already exists, moving on"
