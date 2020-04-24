@@ -28,6 +28,7 @@ func getMachineDeployment(cluster, k8sVersion string, replicas int32) *capiv1alp
 			Selector:    metav1.LabelSelector{},
 			Template: capiv1alpha3.MachineTemplateSpec{
 				Spec: capiv1alpha3.MachineSpec{
+					ClusterName: cluster,
 					Bootstrap: capiv1alpha3.Bootstrap{
 						ConfigRef: &v1.ObjectReference{
 							APIVersion: "bootstrap.cluster.x-k8s.io/v1alpha3",
@@ -37,7 +38,7 @@ func getMachineDeployment(cluster, k8sVersion string, replicas int32) *capiv1alp
 					},
 					InfrastructureRef: v1.ObjectReference{
 						APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha3",
-						Name:       cluster,
+						Name:       fmt.Sprintf("%s-md-0", cluster),
 						Kind:       "AzureMachineTemplate",
 					},
 					Version: to.StringPtr(k8sVersion),
@@ -117,12 +118,14 @@ func getKubeadmControlPlane(cluster, location string, settings map[string]string
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate cloud provider config")
 	}
-
+	replicas := int32(1)
 	controlplane := &kcpv1alpha3.KubeadmControlPlane{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: cluster,
 		},
 		Spec: kcpv1alpha3.KubeadmControlPlaneSpec{
+			Replicas: &replicas,
+			Version:  "v1.17.4",
 			InfrastructureTemplate: corev1.ObjectReference{
 				APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha3",
 				Kind:       "AzureMachineTemplate",

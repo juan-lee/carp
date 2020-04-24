@@ -41,6 +41,12 @@ type WorkerReconciler struct {
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=workers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=workers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureclusters,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=azureclusters/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters;clusters/status,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io;bootstrap.cluster.x-k8s.io;controlplane.cluster.x-k8s.io,resources=*,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=bootstrap.cluster.x-k8s.io,resources=kubeadmconfigs;kubeadmconfigs/status,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machinedeployments;machinedeployments/status,verbs=get;list;watch;create;update;patch;delete
 
 func (r *WorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -60,9 +66,11 @@ func (r *WorkerReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, reterr er
 
 	reconcilers := []func(context.Context, *infrastructurev1alpha1.Worker) error{
 		r.reconcileCluster,
-		r.reconcileMachineTemplate,
 		r.reconcileKubeadmConfigTemplate,
 		r.reconcileKubeadmControlPlane,
+		r.reconcileMachineTemplate,
+		r.reconcileMachineDeployment,
+		r.reconcileAzureCluster,
 	}
 
 	for _, reconcileFn := range reconcilers {
@@ -125,7 +133,7 @@ func (r *WorkerReconciler) reconcileKubeadmConfigTemplate(ctx context.Context, w
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to create/update kubeadm control plane: %w", err)
+		return fmt.Errorf("failed to create/update kubeadm config template: %w", err)
 	}
 
 	return nil
@@ -140,7 +148,22 @@ func (r *WorkerReconciler) reconcileMachineTemplate(ctx context.Context, worker 
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to create/update kubeadm control plane: %w", err)
+		return fmt.Errorf("failed to create/update machine template: %w", err)
+	}
+
+	return nil
+}
+
+func (r *WorkerReconciler) reconcileMachineDeployment(ctx context.Context, worker *infrastructurev1alpha1.Worker) error {
+	template := getMachineDeployment(worker.Name, worker.Spec.Location, 3)
+	template.Namespace = worker.Namespace
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to create/update machine deployment: %w", err)
 	}
 
 	return nil
@@ -155,7 +178,22 @@ func (r *WorkerReconciler) reconcileCluster(ctx context.Context, worker *infrast
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to create/update kubeadm control plane: %w", err)
+		return fmt.Errorf("failed to create/update cluster: %w", err)
+	}
+
+	return nil
+}
+
+func (r *WorkerReconciler) reconcileAzureCluster(ctx context.Context, worker *infrastructurev1alpha1.Worker) error {
+	template := getAzureCluster(worker.Name, worker.Spec.Location)
+	template.Namespace = worker.Namespace
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to create/update azure cluster: %w", err)
 	}
 
 	return nil

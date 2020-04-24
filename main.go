@@ -24,10 +24,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	kubeadmv1beta1 "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1"
+	capzv1alpha3 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha3"
+	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	capbkv1alpha3 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha3"
+	kcpv1alpha3 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	infrastructurev1alpha1 "github.com/juan-lee/carp/api/v1alpha1"
+	carpv1alpha1 "github.com/juan-lee/carp/api/v1alpha1"
 	"github.com/juan-lee/carp/controllers"
 	"github.com/juan-lee/carp/internal/azure"
 	// +kubebuilder:scaffold:imports
@@ -39,9 +44,7 @@ var (
 )
 
 func init() { // nolint: gochecknoinits
-	_ = clientgoscheme.AddToScheme(scheme)
-
-	_ = infrastructurev1alpha1.AddToScheme(scheme)
+	_ = setupScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -104,4 +107,23 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func setupScheme(scheme *runtime.Scheme) error {
+	schemeFn := []func(*runtime.Scheme) error{
+		clientgoscheme.AddToScheme,
+		capzv1alpha3.AddToScheme,
+		capiv1alpha3.AddToScheme,
+		capbkv1alpha3.AddToScheme,
+		kubeadmv1beta1.AddToScheme,
+		kcpv1alpha3.AddToScheme,
+		carpv1alpha1.AddToScheme,
+	}
+	for _, fn := range schemeFn {
+		fn := fn
+		if err := fn(scheme); err != nil {
+			return err
+		}
+	}
+	return nil
 }
