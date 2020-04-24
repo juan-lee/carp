@@ -20,6 +20,7 @@ import (
 	"flag"
 	"os"
 
+	realzap "go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -28,6 +29,7 @@ import (
 
 	infrastructurev1alpha1 "github.com/juan-lee/carp/api/v1alpha1"
 	"github.com/juan-lee/carp/controllers"
+	"github.com/juan-lee/carp/pkg/azure"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -52,7 +54,19 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	ctrl.SetLogger(
+		zap.New(
+			zap.RawZapOpts(realzap.AddCaller()),
+			func(o *zap.Options) {
+				o.Development = true
+			},
+		),
+	)
+	settings, err := azure.GetSettings()
+	if err != nil {
+		setupLog.Error(err, "failed to get azure settings")
+		os.Exit(1)
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
@@ -75,9 +89,10 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controllers.WorkerReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("Worker"),
-		Scheme: mgr.GetScheme(),
+		Client:        mgr.GetClient(),
+		Log:           ctrl.Log.WithName("controllers").WithName("Worker"),
+		Scheme:        mgr.GetScheme(),
+		AzureSettings: settings,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Worker")
 		os.Exit(1)

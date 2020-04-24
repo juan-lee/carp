@@ -19,22 +19,14 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"time"
 
-	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/go-logr/logr"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	capzv1alpha3 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha3"
-	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
-	capbkv1alpha3 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha3"
-	kubeadmv1beta1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/types/v1beta1"
-	kcpv1alpha3 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	infrastructurev1alpha1 "github.com/juan-lee/carp/api/v1alpha1"
 )
@@ -42,12 +34,19 @@ import (
 // WorkerReconciler reconciles a Worker object
 type WorkerReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	Log           logr.Logger
+	Scheme        *runtime.Scheme
+	AzureSettings map[string]string
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=workers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=workers/status,verbs=get;update;patch
+
+func (r *WorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&infrastructurev1alpha1.Worker{}).
+		Complete(r)
+}
 
 func (r *WorkerReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, reterr error) {
 	ctx := context.Background()
@@ -57,6 +56,20 @@ func (r *WorkerReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, reterr er
 	if err := r.Get(ctx, req.NamespacedName, &worker); err != nil {
 		log.Error(err, "unable to fetch worker")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	reconcilers := []func(context.Context, *infrastructurev1alpha1.Worker) error{
+		r.reconcileCluster,
+		r.reconcileMachineTemplate,
+		r.reconcileKubeadmConfigTemplate,
+		r.reconcileKubeadmControlPlane,
+	}
+
+	for _, reconcileFn := range reconcilers {
+		reconcileFn := reconcileFn
+		if err := reconcileFn(ctx, &worker); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to execute reconcile function: %w", err)
+		}
 	}
 
 	defer func() {
@@ -78,207 +91,70 @@ func (r *WorkerReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, reterr er
 	return ctrl.Result{}, nil
 }
 
-func (r *WorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrastructurev1alpha1.Worker{}).
-		Complete(r)
-}
-
-func getAzureSettings() (map[string]string, error) {
-	file, fileErr := auth.GetSettingsFromFile()
-	if fileErr != nil {
-		env, envErr := auth.GetSettingsFromEnvironment()
-		if envErr != nil {
-			return nil, fmt.Errorf("failed to get settings from file: %s\n\n failed to get settings from environment: %s", fileErr.Error(), envErr.Error())
-		}
-		return env.Values, nil
-	}
-	return file.Values, nil
-}
-
-func getCloudProviderConfig(cluster, location string, settings map[string]string) (string, error) {
-	config := &CloudProviderConfig{
-		Cloud:                        settings[auth.EnvironmentName],
-		TenantID:                     settings[auth.TenantID],
-		SubscriptionID:               settings[auth.SubscriptionID],
-		AadClientID:                  settings[auth.ClientID],
-		AadClientSecret:              settings[auth.ClientSecret],
-		ResourceGroup:                cluster,
-		SecurityGroupName:            fmt.Sprintf("%s-node-nsg", cluster),
-		Location:                     location,
-		VMType:                       "standard",
-		VnetName:                     fmt.Sprintf("%s-vnet", cluster),
-		VnetResourceGroup:            cluster,
-		SubnetName:                   fmt.Sprintf("%s-node-subnet", cluster),
-		RouteTableName:               fmt.Sprintf("%s-node-routetable", cluster),
-		LoadBalancerSku:              "standard",
-		MaximumLoadBalancerRuleCount: 250,
-		UseManagedIdentityExtension:  false,
-		UseInstanceMetadata:          true,
-	}
-	b, err := json.Marshal(config)
-	return string(b), err
-}
-
-// abbreviated version to avoid importing k/k
-type CloudProviderConfig struct {
-	Cloud                        string `json:"cloud"`
-	TenantID                     string `json:"tenantId"`
-	SubscriptionID               string `json:"subscriptionId"`
-	AadClientID                  string `json:"aadClientId"`
-	AadClientSecret              string `json:"aadClientSecret"`
-	ResourceGroup                string `json:"resourceGroup"`
-	SecurityGroupName            string `json:"securityGroupName"`
-	Location                     string `json:"location"`
-	VMType                       string `json:"vmType"`
-	VnetName                     string `json:"vnetName"`
-	VnetResourceGroup            string `json:"vnetResourceGroup"`
-	SubnetName                   string `json:"subnetName"`
-	RouteTableName               string `json:"routeTableName"`
-	LoadBalancerSku              string `json:"loadBalancerSku"`
-	MaximumLoadBalancerRuleCount int    `json:"maximumLoadBalancerRuleCount"`
-	UseManagedIdentityExtension  bool   `json:"useManagedIdentityExtension"`
-	UseInstanceMetadata          bool   `json:"useInstanceMetadata"`
-}
-
-var (
-	kubeadmConfigTemplate = capbkv1alpha3.KubeadmConfigTemplate{}
-
-	cluster      = capiv1alpha3.Cluster{}
-	controlplane = kcpv1alpha3.KubeadmControlPlane{}
-
-	azureCluster                  = capzv1alpha3.AzureCluster{}
-	machineDeploymentControlPlane = capiv1alpha3.MachineDeployment{}
-	machineDeploymentWorker       = capiv1alpha3.MachineDeployment{}
-	machineTemplateControlPlane   = capzv1alpha3.AzureMachineTemplate{}
-	machineTemplateWorker         = capzv1alpha3.AzureMachineTemplate{}
-)
-
-func getCluster(cluster, location string, settings map[string]string) *capiv1alpha3.Cluster {
-	return &capiv1alpha3.Cluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: cluster,
-		},
-		Spec: capiv1alpha3.ClusterSpec{
-			ClusterNetwork: &capiv1alpha3.ClusterNetwork{
-				Pods: &capiv1alpha3.NetworkRanges{
-					CIDRBlocks: []string{"192.168.0.0/16"},
-				},
-			},
-			ControlPlaneRef: &corev1.ObjectReference{
-				APIVersion: "controlplane.cluster.x-k8s.io/v1alpha3",
-				Kind:       "AzureMachineTemplate",
-				Name:       cluster,
-			},
-			InfrastructureRef: &corev1.ObjectReference{
-				APIVersion: "controlplane.cluster.x-k8s.io/v1alpha3",
-				Kind:       "AzureMachineTemplate",
-				Name:       cluster,
-			},
-		},
-	}
-}
-
-func getKubeadmControlPlane(cluster, location string, settings map[string]string) (*kcpv1alpha3.KubeadmControlPlane, error) {
-	data, err := getCloudProviderConfig(cluster, location, settings)
+func (r *WorkerReconciler) reconcileKubeadmControlPlane(ctx context.Context, worker *infrastructurev1alpha1.Worker) error {
+	template, err := getKubeadmControlPlane(worker.Name, worker.Spec.Location, r.AzureSettings)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate cloud provider config")
+		return fmt.Errorf("failed to get azure settings: %w", err)
 	}
 
-	controlplane := &kcpv1alpha3.KubeadmControlPlane{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: cluster,
-		},
-		Spec: kcpv1alpha3.KubeadmControlPlaneSpec{
-			InfrastructureTemplate: corev1.ObjectReference{
-				APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha3",
-				Kind:       "AzureMachineTemplate",
-				Name:       cluster,
-			},
-			KubeadmConfigSpec: capbkv1alpha3.KubeadmConfigSpec{
-				ClusterConfiguration: &kubeadmv1beta1.ClusterConfiguration{
-					APIServer: kubeadmv1beta1.APIServer{
-						ControlPlaneComponent: kubeadmv1beta1.ControlPlaneComponent{
-							ExtraArgs: map[string]string{
-								"cloud-config":   "/etc/kubernetes/azure.json",
-								"cloud-provider": "azure",
-							},
-							ExtraVolumes: []kubeadmv1beta1.HostPathMount{
-								{
-									HostPath:  "/etc/kubernetes/azure.json",
-									MountPath: "/etc/kubernetes/azure.json",
-									Name:      "cloud-config",
-									ReadOnly:  true,
-								},
-							},
-						},
-						TimeoutForControlPlane: &metav1.Duration{
-							Duration: time.Minute * 20,
-						},
-					},
-					ControllerManager: kubeadmv1beta1.ControlPlaneComponent{
-						ExtraArgs: map[string]string{
-							"cloud-config":   "/etc/kubernetes/azure.json",
-							"cloud-provider": "azure",
-						},
-					},
-				},
-				InitConfiguration: &kubeadmv1beta1.InitConfiguration{
-					NodeRegistration: kubeadmv1beta1.NodeRegistrationOptions{
-						KubeletExtraArgs: map[string]string{
-							"cloud-config":   "/etc/kubernetes/azure.json",
-							"cloud-provider": "azure",
-						},
-						Name: "{{ ds.meta_data[\"local_hostname\"] }}",
-					},
-				},
-				JoinConfiguration: &kubeadmv1beta1.JoinConfiguration{
-					NodeRegistration: kubeadmv1beta1.NodeRegistrationOptions{
-						KubeletExtraArgs: map[string]string{
-							"cloud-config":   "/etc/kubernetes/azure.json",
-							"cloud-provider": "azure",
-						},
-						Name: "{{ ds.meta_data[\"local_hostname\"] }}",
-					},
-				},
-				Files: []capbkv1alpha3.File{
-					{
-						Owner:       "root:root",
-						Path:        "/etc/kubernetes/azure.json",
-						Permissions: "0644",
-						Content:     data,
-					},
-				},
-			},
-		},
+	template.Namespace = worker.Namespace
+
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to create/update kubeadm control plane: %w", err)
 	}
-	return controlplane, nil
+
+	return nil
 }
 
-func getKubeadmConfigTemplate(cluster, location string, settings map[string]string) (*capbkv1alpha3.KubeadmConfigTemplate, error) {
-	data, err := getCloudProviderConfig(cluster, location, settings)
+func (r *WorkerReconciler) reconcileKubeadmConfigTemplate(ctx context.Context, worker *infrastructurev1alpha1.Worker) error {
+	template, err := getKubeadmConfigTemplate(worker.Name, worker.Spec.Location, r.AzureSettings)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate cloud provider config")
+		return fmt.Errorf("failed to get azure settings: %w", err)
 	}
 
-	return &capbkv1alpha3.KubeadmConfigTemplate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: cluster,
-		},
-		Spec: capbkv1alpha3.KubeadmConfigTemplateSpec{
-			Template: capbkv1alpha3.KubeadmConfigTemplateResource{
-				Spec: capbkv1alpha3.KubeadmConfigSpec{
-					Files: []capbkv1alpha3.File{
-						{
-							Owner:       "root:root",
-							Path:        "/etc/kubernetes/azure.json",
-							Permissions: "0644",
-							Content:     data,
-						},
-					},
-					JoinConfiguration: &kubeadmv1beta1.JoinConfiguration{},
-				},
-			},
-		},
-	}, nil
+	template.Namespace = worker.Namespace
+
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to create/update kubeadm control plane: %w", err)
+	}
+
+	return nil
+}
+
+func (r *WorkerReconciler) reconcileMachineTemplate(ctx context.Context, worker *infrastructurev1alpha1.Worker) error {
+	template := getMachineTemplate(worker.Name, worker.Spec.Location)
+	template.Namespace = worker.Namespace
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to create/update kubeadm control plane: %w", err)
+	}
+
+	return nil
+}
+
+func (r *WorkerReconciler) reconcileCluster(ctx context.Context, worker *infrastructurev1alpha1.Worker) error {
+	template := getCluster(worker.Name, worker.Spec.Location, r.AzureSettings)
+	template.Namespace = worker.Namespace
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to create/update kubeadm control plane: %w", err)
+	}
+
+	return nil
 }

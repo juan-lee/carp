@@ -4,3 +4,4 @@ metadata:
   name: worker-sample
 spec:
   capacity: 2
+  location: southcentralus

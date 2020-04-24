@@ -29,6 +29,8 @@ const (
 
 // WorkerSpec defines the desired state of Worker
 type WorkerSpec struct {
+	// Location is the Azure region for this cluster.
+	Location string `json:"location"`
 	// Capacity is the total number of managed control planes that can be scheduled to this cluster
 	Capacity int32 `json:"capacity"`
 }

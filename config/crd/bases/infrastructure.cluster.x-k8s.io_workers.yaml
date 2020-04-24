@@ -41,8 +41,12 @@ spec:
                 that can be scheduled to this cluster
               format: int32
               type: integer
+            location:
+              description: Location is the Azure region for this cluster.
+              type: string
           required:
           - capacity
+          - location
           type: object
         status:
           description: WorkerStatus defines the observed state of Worker

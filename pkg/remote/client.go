@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/juan-lee/carp/pkg/remote"
-	"github.com/prometheus/common/log"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/kubectl/pkg/cmd/apply"
+	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -17,7 +16,7 @@ type Client struct {
 	factory    cmdutil.Factory
 }
 
-func New(kubeconfigBytes []byte) *Client {
+func New(kubeconfigBytes []byte) (*Client, error) {
 	// Build kubeconfig for remote workload cluster
 	clientconfig, err := clientcmd.NewClientConfigFromBytes(kubeconfigBytes)
 	if err != nil {
@@ -34,7 +33,7 @@ func New(kubeconfigBytes []byte) *Client {
 		return nil, fmt.Errorf("failed to create remote kubeclient: %w", err)
 	}
 
-	getter, err := remote.NewRESTClientGetter(kubeconfigBytes)
+	getter, err := NewRESTClientGetter(kubeconfigBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create remote restclient getter: %w", err)
 	}
@@ -59,40 +58,29 @@ func (c *Client) Kustomize(url string, mutator ApplyOptionsMutateFn) (stdout *by
 	return c.do(url, kustomizeFn)
 }
 
-func (*Client) do(url string, mutateFn ApplyOptionsMutateFn) {
+func (c *Client) do(url string, mutateFn ApplyOptionsMutateFn) (stdout *bytes.Buffer, stderr *bytes.Buffer, err error) {
 	stdio := bytes.NewBuffer(nil)
 	errio := bytes.NewBuffer(nil)
 	streams := genericclioptions.IOStreams{In: stdio, Out: stdio, ErrOut: errio}
-	cmd := apply.NewCmdApply("kubectl", factory, streams)
+	cmd := apply.NewCmdApply("kubectl", c.factory, streams)
 	opts := apply.NewApplyOptions(streams)
 
 	// Apply file configuration, either raw or kustomize
-	mutateFn(opts)
+	mutateFn(opts, url)
 
-	if err := opts.Complete(factory, cmd); err != nil {
-		log.Error(err, "failed to complete apply options")
-		return ctrl.Result{}, err
+	if err := opts.Complete(c.factory, cmd); err != nil {
+		return nil, nil, fmt.Errorf("failed to complete apply options: %w", err)
 	}
-
-	v := c.factory.NewBuilder().
-		Unstructured().
-		Schema(opts.Validator).
-		ContinueOnError().
-		NamespaceParam(opts.Namespace).DefaultNamespace().
-		FilenameParam(opts.EnforceNamespace, &opts.DeleteOptions.FilenameOptions).
-		LabelSelectorParam(opts.Selector).
-		Flatten().
-		Do()
 
 	return stdio, errio, opts.Run()
 }
 
-type ApplyOptionsMutateFn func(opts *apply.ApplyOptions)
+type ApplyOptionsMutateFn func(opts *apply.ApplyOptions, url string)
 
 var kustomizeFn ApplyOptionsMutateFn = func(opts *apply.ApplyOptions, url string) {
 	opts.DeleteFlags.FileNameFlags.Kustomize = &url
 }
 
 var rawFn ApplyOptionsMutateFn = func(opts *apply.ApplyOptions, url string) {
-	opts.DeleteFlags.FileNameFlags.Filenames = &url
+	opts.DeleteFlags.FileNameFlags.Filenames = &[]string{url}
 }
