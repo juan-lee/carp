@@ -42,7 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	carpv1alpha1 "github.com/juan-lee/carp/api/v1alpha1"
-	"github.com/juan-lee/carp/pkg/azure"
+	"github.com/juan-lee/carp/internal/azure"
 	// +kubebuilder:scaffold:imports
 )
 

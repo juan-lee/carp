@@ -12,11 +12,11 @@ import (
 )
 
 type Client struct {
-	kubeclient client.Client
-	factory    cmdutil.Factory
+	client.Client
+	factory cmdutil.Factory
 }
 
-func New(kubeconfigBytes []byte) (*Client, error) {
+func NewClient(kubeconfigBytes []byte) (*Client, error) {
 	// Build kubeconfig for remote workload cluster
 	clientconfig, err := clientcmd.NewClientConfigFromBytes(kubeconfigBytes)
 	if err != nil {

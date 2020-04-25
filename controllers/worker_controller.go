@@ -21,17 +21,21 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	capzv1alpha3 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha3"
 	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	capbkv1alpha3 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha3"
 	kcpv1alpha3 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
+	"sigs.k8s.io/cluster-api/util/secret"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	infrastructurev1alpha1 "github.com/juan-lee/carp/api/v1alpha1"
+	"github.com/juan-lee/carp/internal/remote"
 )
 
 // WorkerReconciler reconciles a Worker object
@@ -50,6 +54,7 @@ type WorkerReconciler struct {
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io;bootstrap.cluster.x-k8s.io;controlplane.cluster.x-k8s.io,resources=*,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=bootstrap.cluster.x-k8s.io,resources=kubeadmconfigs;kubeadmconfigs/status,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machinedeployments;machinedeployments/status,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;patch
 
 func (r *WorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -80,6 +85,7 @@ func (r *WorkerReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, reterr er
 		r.reconcileMachineTemplate,
 		r.reconcileMachineDeployment,
 		r.reconcileAzureCluster,
+		r.reconcileExternal,
 	}
 
 	for _, reconcileFn := range reconcilers {
@@ -239,6 +245,74 @@ func (r *WorkerReconciler) reconcileAzureCluster(ctx context.Context, worker *in
 
 	if err != nil {
 		return fmt.Errorf("failed to create/update azure cluster: %w", err)
+	}
+
+	return nil
+}
+
+func (r *WorkerReconciler) reconcileExternal(ctx context.Context, worker *infrastructurev1alpha1.Worker) error {
+	// TODO(ace): don't hardcode
+	azureSecret := &corev1.Secret{}
+	azureKey := types.NamespacedName{
+		Name:      "capz-manager-bootstrap-credentials",
+		Namespace: "capz-system",
+	}
+
+	// Fetch azure manager credentials to transfer to remote cluster
+	if err := r.Get(ctx, azureKey, azureSecret); err != nil {
+		return fmt.Errorf("failed to get azure manager secret to apply to cluster: %w", err)
+	}
+
+	// Fetch remove kubeconfig
+	kubeconfigSecret := &corev1.Secret{}
+	kubeconfigKey := types.NamespacedName{
+		Name:      fmt.Sprintf("%s-kubeconfig", worker.Name),
+		Namespace: worker.Namespace,
+	}
+
+	if err := r.Get(ctx, kubeconfigKey, kubeconfigSecret); err != nil {
+		return fmt.Errorf("failed to get remote kubeconfig to apply to cluster: %w", err)
+	}
+
+	data, ok := kubeconfigSecret.Data[secret.KubeconfigDataName]
+	if !ok {
+		return fmt.Errorf("missing key %q in secret data", secret.KubeconfigDataName)
+	}
+
+	// Construct a kubeclient with it
+	remoteClient, err := remote.NewClient(data)
+	if err != nil {
+		return fmt.Errorf("failed to create REST configuration for worker %s/%s : %w", worker.Namespace, worker.Name, err)
+	}
+
+	// Ensure existence of remote namespace
+	remoteNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: azureKey.Namespace,
+		},
+	}
+	_, err = controllerutil.CreateOrUpdate(ctx, remoteClient, remoteNamespace, func() error {
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create remote azure manager namespace")
+	}
+
+	// Create fresh copy to avoid copying stuff like UID, resourceVersion
+	remoteSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      azureKey.Name,
+			Namespace: azureKey.Namespace,
+		},
+		Data: azureSecret.Data,
+	}
+	want := remoteSecret.DeepCopy()
+	_, err = controllerutil.CreateOrUpdate(ctx, remoteClient, remoteSecret, func() error {
+		remoteSecret = want
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create remote azure manager secret")
 	}
 
 	return nil
