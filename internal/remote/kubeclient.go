@@ -17,18 +17,12 @@ type Client struct {
 }
 
 func NewClient(kubeconfigBytes []byte) (*Client, error) {
-	// Build kubeconfig for remote workload cluster
-	clientconfig, err := clientcmd.NewClientConfigFromBytes(kubeconfigBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create remote clientconfig: %w", err)
-	}
-
-	restClient, err := clientconfig.ClientConfig()
+	restConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeconfigBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create remote restclient: %w", err)
 	}
 
-	kubeclient, err := client.New(restClient, client.Options{})
+	kubeclient, err := client.New(restConfig, client.Options{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create remote kubeclient: %w", err)
 	}

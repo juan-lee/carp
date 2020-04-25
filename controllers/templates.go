@@ -156,8 +156,17 @@ func getKubeadmControlPlane(cluster, location string, settings map[string]string
 					},
 					ControllerManager: kubeadmv1beta1.ControlPlaneComponent{
 						ExtraArgs: map[string]string{
-							"cloud-config":   "/etc/kubernetes/azure.json",
-							"cloud-provider": "azure",
+							"allocate-node-cidrs": "false",
+							"cloud-config":        "/etc/kubernetes/azure.json",
+							"cloud-provider":      "azure",
+						},
+						ExtraVolumes: []kubeadmv1beta1.HostPathMount{
+							{
+								HostPath:  "/etc/kubernetes/azure.json",
+								MountPath: "/etc/kubernetes/azure.json",
+								Name:      "cloud-config",
+								ReadOnly:  true,
+							},
 						},
 					},
 				},
@@ -187,6 +196,7 @@ func getKubeadmControlPlane(cluster, location string, settings map[string]string
 						Content:     data,
 					},
 				},
+				UseExperimentalRetryJoin: true,
 			},
 		},
 	}
@@ -214,7 +224,15 @@ func getKubeadmConfigTemplate(cluster, location string, settings map[string]stri
 							Content:     data,
 						},
 					},
-					JoinConfiguration: &kubeadmv1beta1.JoinConfiguration{},
+					JoinConfiguration: &kubeadmv1beta1.JoinConfiguration{
+						NodeRegistration: kubeadmv1beta1.NodeRegistrationOptions{
+							KubeletExtraArgs: map[string]string{
+								"cloud-config":   "/etc/kubernetes/azure.json",
+								"cloud-provider": "azure",
+							},
+							Name: "{{ ds.meta_data[\"local_hostname\"] }}",
+						},
+					},
 				},
 			},
 		},

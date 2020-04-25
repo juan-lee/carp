@@ -131,7 +131,7 @@ func (r *WorkerReconciler) reconcileKubeadmControlPlane(ctx context.Context, wor
 
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
 		template = want
-		return controllerutil.SetControllerReference(worker, template, r.Scheme)
+		return nil
 	})
 
 	if err != nil {
@@ -156,7 +156,7 @@ func (r *WorkerReconciler) reconcileKubeadmConfigTemplate(ctx context.Context, w
 
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
 		template = want
-		return controllerutil.SetControllerReference(worker, template, r.Scheme)
+		return nil
 	})
 
 	if err != nil {
@@ -177,7 +177,7 @@ func (r *WorkerReconciler) reconcileMachineTemplate(ctx context.Context, worker 
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
 		template = want
-		return controllerutil.SetControllerReference(worker, template, r.Scheme)
+		return nil
 	})
 
 	if err != nil {
@@ -198,7 +198,7 @@ func (r *WorkerReconciler) reconcileMachineDeployment(ctx context.Context, worke
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
 		template = want
-		return controllerutil.SetControllerReference(worker, template, r.Scheme)
+		return nil
 	})
 
 	if err != nil {
@@ -219,7 +219,7 @@ func (r *WorkerReconciler) reconcileCluster(ctx context.Context, worker *infrast
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
 		template = want
-		return controllerutil.SetControllerReference(worker, template, r.Scheme)
+		return nil
 	})
 
 	if err != nil {
@@ -239,8 +239,11 @@ func (r *WorkerReconciler) reconcileAzureCluster(ctx context.Context, worker *in
 	want := template.DeepCopy()
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, template, func() error {
+		if err := controllerutil.SetControllerReference(worker, want, r.Scheme); err != nil {
+			return err
+		}
 		template = want
-		return controllerutil.SetControllerReference(worker, template, r.Scheme)
+		return nil
 	})
 
 	if err != nil {
@@ -313,6 +316,12 @@ func (r *WorkerReconciler) reconcileExternal(ctx context.Context, worker *infras
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create remote azure manager secret")
+	}
+
+	_, _, err = remoteClient.Apply("https://raw.githubusercontent.com/juan-lee/cluster-api-provider-azure/hackathon/templates/addons/calico.yaml")
+
+	if err != nil {
+		return fmt.Errorf("failed to apply calico config: %w", err)
 	}
 
 	return nil

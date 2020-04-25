@@ -57,7 +57,7 @@ providers = {
             "api",
             "cloud",
             "controllers",
-            "pkg",
+            "internal",
         ],
     },
     "core": {

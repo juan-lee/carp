@@ -20,6 +20,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/Azure/go-autorest/autorest/azure/auth"
 	realzap "go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -68,6 +69,17 @@ func main() {
 	settings, err := azure.GetSettings()
 	if err != nil {
 		setupLog.Error(err, "failed to get azure settings")
+		os.Exit(1)
+	}
+
+	if settings[auth.ClientID] == "" || settings[auth.ClientSecret] == "" || settings[auth.TenantID] == "" || settings[auth.SubscriptionID] == "" {
+		secretLen := len(settings[auth.ClientID])
+		setupLog.WithValues(
+			"app", settings[auth.ClientID],
+			"tenant", settings[auth.ClientID],
+			"subscription", settings[auth.ClientID],
+			"length of secret", secretLen,
+		).Error(err, "azure credentials not fully populated")
 		os.Exit(1)
 	}
 
