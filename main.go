@@ -20,6 +20,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/Azure/go-autorest/autorest/azure/auth"
 	realzap "go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -32,7 +33,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/Azure/go-autorest/autorest/azure/auth"
 	carpv1alpha1 "github.com/juan-lee/carp/api/v1alpha1"
 	"github.com/juan-lee/carp/controllers"
 	"github.com/juan-lee/carp/internal/azure"
@@ -72,7 +72,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	if settings[auth.ClientID] == "" || settings[auth.ClientSecret] == "" || settings[auth.TenantID] == "" || settings[auth.SubscriptionID] == "" {
+	if settings[auth.ClientID] == "" ||
+		settings[auth.ClientSecret] == "" ||
+		settings[auth.TenantID] == "" ||
+		settings[auth.SubscriptionID] == "" {
 		secretLen := len(settings[auth.ClientID])
 		setupLog.WithValues(
 			"app", settings[auth.ClientID],
