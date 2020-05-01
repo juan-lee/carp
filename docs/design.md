@@ -18,7 +18,7 @@ instance of CAPI + CAPZ. When a user creates a cluster via CARP, CARP tries to
 schedule it to a management cluster. To do so, CARP must be aware of management
 cluster capacity. When no management cluster has capacity, CARP must create a
 new cluster. It does so by creating a CAPI cluster object. When that cluster is
-ready, CARP deployed the CAPI + CAPZ cluster to the newly deployed management
+ready, CARP deploys the CAPI + CAPZ cluster to the newly deployed management
 cluster. When the CAPI + CAPZ components are ready on the remote management
-cluster, CARP will apply the origin user-requested cluster to the remote
+cluster, CARP will apply the original user-requested cluster to the remote
 management cluster, and wait for it to provision successfully.
