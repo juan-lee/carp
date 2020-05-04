@@ -58,7 +58,7 @@ func main() {
 	}()
 
 	go func() {
-		time.Sleep(10 * time.Second)
+		time.Sleep(3 * time.Second)
 		sbPublisherConfig := &bus.PublisherConfig{
 			Region:                     *region,
 			Environment:                *environment,
